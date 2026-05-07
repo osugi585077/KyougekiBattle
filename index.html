@@ -1,0 +1,2302 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STAGE 1</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101419;
+      --line: #324050;
+      --cell-a: #22303c;
+      --cell-b: #1c2833;
+      --cyan: #63d8ff;
+      --cyan-deep: #1597c2;
+      --ally: #7be0d5;
+      --enemy: #ff5e5e;
+      --enemy-deep: #b5252b;
+      --text: #eef6fb;
+      --muted: #9fb2bf;
+      --hp: #48e27d;
+      --danger: #ffcf5a;
+    }
+
+    * {
+      box-sizing: border-box;
+      touch-action: none;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        linear-gradient(135deg, rgba(99, 216, 255, 0.08), transparent 34%),
+        linear-gradient(315deg, rgba(255, 94, 94, 0.08), transparent 38%),
+        var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(96vw, 560px);
+      max-height: 100dvh;
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    button {
+      min-height: 40px;
+      padding: 0 14px;
+      border: 1px solid #496174;
+      border-radius: 6px;
+      background: #243240;
+      color: var(--text);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: 1fr 144px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #2b3a47;
+      border-radius: 8px;
+      background: rgba(23, 29, 36, 0.86);
+    }
+
+    .status {
+      min-height: 24px;
+      color: var(--muted);
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .timer {
+      height: 12px;
+      overflow: hidden;
+      border: 1px solid #405163;
+      border-radius: 999px;
+      background: #2a3642;
+    }
+
+    .timer-wrap {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .clock-icon {
+      width: 22px;
+      height: 22px;
+      color: var(--cyan);
+      filter: drop-shadow(0 0 7px rgba(99, 216, 255, 0.72));
+    }
+
+    .timer-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--danger));
+      transform: scaleX(1);
+      transform-origin: left center;
+    }
+
+    .board-wrap {
+      position: relative;
+      width: min(100%, calc((100dvh - 168px) * 0.75), 560px);
+      aspect-ratio: 6 / 8;
+      justify-self: center;
+      overflow: hidden;
+      border: 2px solid #53697d;
+      border-radius: 8px;
+      background: #141b22;
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+      contain: layout paint style;
+    }
+
+    .board-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: linear-gradient(rgba(20, 27, 34, 0.42), rgba(20, 27, 34, 0.42)), url("Image/BG.jpg");
+      background-position: center;
+      background-size: cover;
+      opacity: 0.72;
+    }
+
+    .board {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+    }
+
+    #chainLines,
+    #pieces,
+    #effects {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    #chainLines {
+      z-index: 3;
+    }
+
+    #pieces {
+      z-index: 4;
+    }
+
+    #effects {
+      z-index: 50;
+    }
+
+    #chainLines,
+    #pieces,
+    #effects,
+    .piece,
+    .damage,
+    .skill-ball,
+    .cutin {
+      backface-visibility: hidden;
+    }
+
+    .cell {
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(34, 48, 60, 0.42);
+    }
+
+    .cell:nth-child(odd) {
+      background: rgba(28, 40, 51, 0.34);
+    }
+
+    .piece {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      pointer-events: auto;
+      border: 3px solid rgba(255, 255, 255, 0.72);
+      border-radius: 8px;
+      box-shadow: 0 9px 20px rgba(0, 0, 0, 0.28), inset 0 -8px 16px rgba(0, 0, 0, 0.2);
+      color: #06141a;
+      font-size: clamp(18px, 6vw, 34px);
+      font-weight: 900;
+      letter-spacing: 0;
+      transform: translate(-50%, -50%);
+      transition: left 260ms ease, top 260ms ease, transform 160ms ease, opacity 180ms ease;
+      will-change: left, top, transform, opacity;
+    }
+
+    .piece.drop-in {
+      animation: drop-in 520ms cubic-bezier(0.2, 0.9, 0.22, 1.18) both;
+    }
+
+    .piece.boss-dissolve {
+      pointer-events: none;
+      animation: boss-dissolve 5000ms linear forwards;
+    }
+
+    .player,
+    .ally {
+      cursor: grab;
+    }
+
+    .player {
+      z-index: 5;
+      background: radial-gradient(circle at 35% 25%, #c7f5ff, var(--cyan) 50%, var(--cyan-deep));
+    }
+
+    .ally {
+      z-index: 4;
+      background: radial-gradient(circle at 35% 25%, #d2fff9, var(--ally) 55%, #1ea699);
+    }
+
+    .enemy {
+      z-index: 4;
+      background: radial-gradient(circle at 35% 25%, #ffd0d0, var(--enemy) 54%, var(--enemy-deep));
+      color: #260607;
+    }
+
+    .piece-image {
+      position: absolute;
+      inset: 5%;
+      width: 90%;
+      height: 90%;
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.45));
+    }
+
+    .has-image .mark {
+      opacity: 0;
+    }
+
+    .dragging {
+      z-index: 20;
+      cursor: grabbing;
+      transform: translate(-50%, -50%) scale(1.08);
+      transition: none;
+    }
+
+    .hpbar {
+      position: absolute;
+      right: 13%;
+      bottom: -12%;
+      left: 13%;
+      height: 7px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.52);
+    }
+
+    .skill-icon {
+      position: absolute;
+      right: -4%;
+      bottom: -14%;
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 5px var(--skill-color, #63d8ff));
+      pointer-events: none;
+    }
+
+    .hpfill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--hp), #b6f25f);
+      transform-origin: left center;
+    }
+
+    .damage {
+      position: absolute;
+      z-index: 50;
+      color: #fff2a6;
+      font-size: clamp(20px, 6vw, 36px);
+      font-weight: 950;
+      pointer-events: none;
+      text-shadow: 0 3px 0 #7f1b1f, 0 0 12px rgba(255, 80, 80, 0.85);
+      transform: translate(-50%, -50%);
+      animation: float-damage 850ms ease-out forwards;
+    }
+
+    .skill-ball {
+      position: absolute;
+      z-index: 55;
+      width: clamp(22px, 6vw, 38px);
+      height: clamp(22px, 6vw, 38px);
+      object-fit: contain;
+      filter: drop-shadow(0 0 12px var(--skill-color, #63d8ff)) drop-shadow(0 0 24px var(--skill-color, #63d8ff));
+      pointer-events: none;
+      left: var(--from-x);
+      top: var(--from-y);
+      transform: translate(-50%, -50%);
+      animation: skill-shot 520ms ease-in forwards;
+    }
+
+    .cutin {
+      position: absolute;
+      inset: 0;
+      z-index: 58;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+
+    .cutin.from-top {
+      animation: cutin-from-top 760ms ease-in-out forwards;
+    }
+
+    .cutin.from-bottom {
+      animation: cutin-from-bottom 760ms ease-in-out forwards;
+    }
+
+    .cutin img {
+      width: min(72%, 360px);
+      max-height: 92%;
+      object-fit: contain;
+      opacity: 0.5;
+      filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.62));
+    }
+
+    .cutin.from-top img {
+      transform: translateX(-16%);
+    }
+
+    .cutin.from-bottom img {
+      transform: translateX(16%);
+    }
+
+    .title-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        linear-gradient(rgba(7, 12, 18, 0.58), rgba(7, 12, 18, 0.82)),
+        url("Image/BG.jpg") center / cover;
+    }
+
+    .title-panel {
+      display: grid;
+      gap: 24px;
+      justify-items: center;
+      text-align: center;
+      max-width: min(88vw, 620px);
+    }
+
+    .game-title {
+      margin: 0;
+      color: #e8f8ff;
+      font-size: clamp(42px, 11vw, 82px);
+      font-weight: 950;
+      letter-spacing: 0;
+      text-shadow: 0 0 24px rgba(99, 216, 255, 0.95), 0 5px 0 rgba(21, 151, 194, 0.75);
+    }
+
+    .start-button {
+      min-width: 180px;
+      min-height: 54px;
+      border-color: rgba(255, 207, 90, 0.86);
+      background: #36270b;
+      color: #fff2a6;
+      font-size: 22px;
+      box-shadow: 0 0 28px rgba(255, 207, 90, 0.3);
+    }
+
+    .title-description {
+      margin: 0;
+      padding: 14px 18px;
+      border: 1px solid rgba(199, 245, 255, 0.42);
+      border-radius: 8px;
+      background: rgba(5, 14, 22, 0.58);
+      color: #e8f8ff;
+      font-size: clamp(14px, 3.8vw, 18px);
+      font-weight: 800;
+      line-height: 1.75;
+      text-align: left;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.72);
+    }
+
+    .pause-hint {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      text-align: right;
+    }
+
+    .chain-line {
+      position: absolute;
+      z-index: 3;
+      height: 16px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(159, 255, 137, 0.18), rgba(72, 255, 125, 0.82), rgba(159, 255, 137, 0.18));
+      border: 2px solid rgba(190, 255, 176, 0.78);
+      box-shadow: 0 0 18px rgba(72, 255, 125, 0.95), 0 0 34px rgba(72, 255, 125, 0.58);
+      pointer-events: none;
+      transform-origin: left center;
+    }
+
+    .turn-banner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      z-index: 60;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: clamp(30px, 9vw, 60px);
+      font-weight: 950;
+      letter-spacing: 0;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.88);
+      animation: turn-pop 900ms ease-out forwards;
+      white-space: nowrap;
+    }
+
+    .turn-banner.player-turn {
+      border: 1px solid rgba(99, 216, 255, 0.72);
+      background: rgba(6, 38, 50, 0.76);
+      color: #c7f5ff;
+      text-shadow: 0 0 18px rgba(99, 216, 255, 0.9);
+    }
+
+    .turn-banner.enemy-turn {
+      border: 1px solid rgba(255, 94, 94, 0.72);
+      background: rgba(55, 6, 10, 0.76);
+      color: #ffd0d0;
+      text-shadow: 0 0 18px rgba(255, 94, 94, 0.9);
+    }
+
+    .turn-banner.stage-turn {
+      border: 1px solid rgba(255, 207, 90, 0.78);
+      background: rgba(47, 35, 7, 0.78);
+      color: #fff2a6;
+      text-shadow: 0 0 18px rgba(255, 207, 90, 0.88);
+    }
+
+    .pause-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 90;
+      display: grid;
+      place-items: center;
+      background: rgba(4, 9, 14, 0.58);
+      backdrop-filter: blur(3px);
+      pointer-events: none;
+    }
+
+    .pause-title {
+      padding: 10px 20px;
+      border: 1px solid rgba(238, 246, 251, 0.72);
+      border-radius: 8px;
+      background: rgba(12, 20, 28, 0.82);
+      color: var(--text);
+      font-size: clamp(38px, 11vw, 72px);
+      font-weight: 950;
+      letter-spacing: 0;
+      text-shadow: 0 0 20px rgba(238, 246, 251, 0.82);
+    }
+
+    .pause-panel {
+      display: grid;
+      gap: 18px;
+      min-width: min(86vw, 360px);
+      padding: 22px;
+      border: 1px solid rgba(238, 246, 251, 0.42);
+      border-radius: 8px;
+      background: rgba(12, 20, 28, 0.86);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.36);
+    }
+
+    .pause-panel .pause-title {
+      justify-self: center;
+    }
+
+    .volume-row {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 12px;
+      align-items: center;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .volume-row input {
+      width: 100%;
+      accent-color: var(--cyan);
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .pause-menu-button {
+      width: 100%;
+      min-height: 44px;
+      border-color: rgba(255, 207, 90, 0.7);
+      background: rgba(54, 39, 11, 0.86);
+      color: #fff2a6;
+      pointer-events: auto;
+    }
+
+    .clear-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 80;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(6, 15, 22, 0.78);
+      backdrop-filter: blur(4px);
+      pointer-events: auto;
+    }
+
+    .clear-panel {
+      display: grid;
+      gap: 18px;
+      justify-items: center;
+      pointer-events: auto;
+    }
+
+    .clear-title {
+      color: #dff9ff;
+      font-size: clamp(38px, 10vw, 68px);
+      font-weight: 950;
+      letter-spacing: 0;
+      text-align: center;
+      text-shadow: 0 0 20px rgba(99, 216, 255, 0.95), 0 4px 0 rgba(21, 151, 194, 0.8);
+      animation: clear-glow 1100ms ease-in-out infinite alternate;
+    }
+
+    .gameover-title {
+      color: #ffd0d0;
+      font-size: clamp(38px, 10vw, 68px);
+      font-weight: 950;
+      letter-spacing: 0;
+      text-align: center;
+      text-shadow: 0 0 20px rgba(255, 94, 94, 0.95), 0 4px 0 rgba(181, 37, 43, 0.8);
+    }
+
+    .replay-button {
+      min-width: 150px;
+      border-color: rgba(99, 216, 255, 0.85);
+      background: #143544;
+      box-shadow: 0 0 24px rgba(99, 216, 255, 0.24);
+      color: #dff9ff;
+      font-size: 18px;
+      pointer-events: auto;
+    }
+
+    .attack-flash {
+      animation: flash 260ms ease;
+    }
+
+    @keyframes float-damage {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -35%) scale(0.75);
+      }
+
+      20% {
+        opacity: 1;
+      }
+
+      to {
+        opacity: 0;
+        transform: translate(-50%, -135%) scale(1.12);
+      }
+    }
+
+    @keyframes flash {
+      50% {
+        filter: brightness(1.8) saturate(1.5);
+        transform: translate(-50%, -50%) scale(1.16);
+      }
+    }
+
+    @keyframes turn-pop {
+      15%, 70% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      to {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.08);
+      }
+    }
+
+    @keyframes drop-in {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -280%) scale(0.86);
+      }
+
+      72% {
+        opacity: 1;
+      }
+
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+
+    @keyframes boss-dissolve {
+      from {
+        clip-path: inset(0 0 0 0);
+        filter: brightness(1.5) saturate(1.3);
+      }
+
+      to {
+        clip-path: inset(100% 0 0 0);
+        filter: brightness(2.2) saturate(0.2);
+      }
+    }
+
+    @keyframes clear-glow {
+      from {
+        transform: scale(0.98);
+      }
+
+      to {
+        transform: scale(1.03);
+      }
+    }
+
+    @keyframes skill-shot {
+      from {
+        opacity: 0.2;
+        transform: translate(-50%, -50%) scale(0.6);
+      }
+
+      50% {
+        opacity: 1;
+        transform: translate(calc(-50% + var(--dx) * 0.5), calc(-50% + var(--dy) * 0.5 - var(--arc))) scale(1.1);
+      }
+
+      18% {
+        opacity: 1;
+      }
+
+      to {
+        opacity: 0;
+        transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.25);
+      }
+    }
+
+    @keyframes cutin-from-top {
+      from {
+        opacity: 0;
+        transform: translateY(-42%) scale(0.96);
+      }
+
+      28%, 70% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+
+      to {
+        opacity: 0;
+        transform: translateY(-42%) scale(1.02);
+      }
+    }
+
+    @keyframes cutin-from-bottom {
+      from {
+        opacity: 0;
+        transform: translateY(42%) scale(0.96);
+      }
+
+      28%, 70% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+
+      to {
+        opacity: 0;
+        transform: translateY(42%) scale(1.02);
+      }
+    }
+
+    @media (max-width: 420px) {
+      main {
+        gap: 10px;
+        padding: 10px;
+      }
+
+      .topbar,
+      .hud {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 640px), (max-height: 760px) {
+      main {
+        width: 100vw;
+        gap: 8px;
+        padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+      }
+
+      .topbar {
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      h1 {
+        font-size: 18px;
+      }
+
+      button {
+        min-height: 36px;
+        padding: 0 10px;
+        font-size: 13px;
+      }
+
+      .topbar button {
+        width: auto;
+      }
+
+      .hud {
+        grid-template-columns: 1fr;
+        gap: 7px;
+        padding: 8px;
+      }
+
+      .status {
+        min-height: 18px;
+        font-size: 12px;
+      }
+
+      .pause-hint {
+        text-align: left;
+        font-size: 12px;
+      }
+
+      .timer-wrap {
+        grid-template-columns: 18px 1fr;
+      }
+
+      .clock-icon {
+        width: 18px;
+        height: 18px;
+      }
+
+      .board-wrap {
+        width: min(calc(100vw - 16px), calc((100dvh - 146px) * 0.75));
+        border-width: 1px;
+      }
+
+      .piece {
+        border-width: 2px;
+        box-shadow: 0 5px 12px rgba(0, 0, 0, 0.28), inset 0 -5px 10px rgba(0, 0, 0, 0.16);
+      }
+
+      .chain-line {
+        height: 12px;
+        box-shadow: 0 0 12px rgba(72, 255, 125, 0.9), 0 0 22px rgba(72, 255, 125, 0.46);
+      }
+
+      .turn-banner {
+        font-size: clamp(24px, 8vw, 42px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="titleScreen" class="title-screen">
+      <div class="title-panel">
+        <h1 class="game-title">ザ・挟撃バトル</h1>
+        <p class="title-description">
+          味方コマをドラッグして5秒以内に配置し、味方同士で敵を挟むと攻撃できます。直線上に味方がつながるとスキルが連鎖し、STAGE 5のボス撃破を目指します。
+        </p>
+        <button id="startButton" class="start-button" type="button">START</button>
+      </div>
+    </section>
+
+    <div class="topbar">
+      <h1 id="stageTitle">STAGE 1</h1>
+      <button id="reset" type="button">リセット</button>
+    </div>
+
+    <section class="hud" aria-live="polite">
+      <div id="status" class="status">PかAをドラッグして開始</div>
+      <div class="pause-hint">PAUSEはSPACEキー</div>
+      <div class="timer-wrap" aria-hidden="true">
+        <svg class="clock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="M12 7v5l3 2"></path>
+        </svg>
+        <div class="timer">
+          <div id="timerFill" class="timer-fill"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="boardWrap" class="board-wrap">
+      <div id="board" class="board" aria-label="6x8 game board"></div>
+      <div id="chainLines"></div>
+      <div id="pieces"></div>
+      <div id="effects"></div>
+    </section>
+  </main>
+
+  <script>
+    const COLS = 6;
+    const ROWS = 8;
+    const TURN_MS = 5000;
+    const FRIENDLY_DAMAGE = 28;
+    const ENEMY_DAMAGE = 18;
+    const TURN_DELAY_MS = 760;
+    const DAMAGE_SEQUENCE_MS = 180;
+    const DAMAGE_DISPLAY_MS = 620;
+    const SKILL_DAMAGE_MULTIPLIER = 1.2;
+    const SKILL_BANNER_MS = 620;
+    const SKILL_PROJECTILE_MS = 520;
+    const MAX_STAGE = 5;
+    const ENEMY_MOVE_STEPS = 10;
+    const ENEMY_STEP_MS = 145;
+    const DRAG_SOUND_SRC = "Sound/drag.mp3";
+    const PLAYER_ATTACK_SOUND_SRC = "Sound/Player_Attack.mp3";
+    const ENEMY_ATTACK_SOUND_SRC = "Sound/Enemy_Attack.mp3";
+    const BATTLE_BGM_SRC = "Sound/Battle.mp3";
+    const BOSS_BGM_SRC = "Sound/Boss.mp3";
+    const TITLE_BGM_SRC = BATTLE_BGM_SRC;
+    const ENEMY_DEFEAT_SOUND_SRC = "Sound/ED.mp3";
+    const FRIENDLY_DEFEAT_SOUND_SRC = "Sound/P_yarare.mp3";
+    const SKILL_SOUND_BY_SKILL = {
+      red: "Sound/Fire.mp3",
+      yellow: "Sound/Thunder.mp3",
+      blue: "Sound/Ice.mp3"
+    };
+    const ENEMY_IMAGE_SRCS = ["Image/Enemy/mo_01.jpg", "Image/Enemy/mo02.jpg", "Image/Enemy/mo03.jpg", "Image/Enemy/mo04.jpg"];
+    const BOSS_IMAGE_SRC = "Image/Enemy/Boss.jpg";
+    const PLAYER_IMAGE_BY_SKILL = {
+      yellow: "Image/Player/Knight_icon.jpg",
+      blue: "Image/Player/Thief_icon.jpg",
+      red: "Image/Player/wiz_icon.jpg",
+      none: "Image/Player/Fighter_icon.jpg"
+    };
+    const SKILL_ICON_BY_SKILL = {
+      red: "Image/Effect/Fire_icon.png",
+      yellow: "Image/Effect/Thunder_icon.png",
+      blue: "Image/Effect/Ice_icon.png"
+    };
+    const CUTIN_IMAGE_BY_SKILL = {
+      yellow: "Image/Player/Knight_tachie.png",
+      blue: "Image/Player/Thief_tachie.png",
+      red: "Image/Player/Wiz_tachie.png",
+      none: "Image/Player/Fighter_tachie.png"
+    };
+
+    const board = document.querySelector("#board");
+    const titleScreen = document.querySelector("#titleScreen");
+    const startButton = document.querySelector("#startButton");
+    const wrap = document.querySelector("#boardWrap");
+    const piecesLayer = document.querySelector("#pieces");
+    const chainLinesLayer = document.querySelector("#chainLines");
+    const effectsLayer = document.querySelector("#effects");
+    const statusEl = document.querySelector("#status");
+    const timerFill = document.querySelector("#timerFill");
+    const resetButton = document.querySelector("#reset");
+    const stageTitle = document.querySelector("#stageTitle");
+
+    let pieces = [];
+    let turn = "intro";
+    let dragging = false;
+    let activePointer = null;
+    let activePieceId = null;
+    let turnStartedAt = 0;
+    let playerTurnRemaining = TURN_MS;
+    let timerId = null;
+    let forcedEndId = null;
+    let cellSize = 0;
+    let currentStage = 1;
+    let paused = false;
+    let enemySequenceRunning = false;
+    let enemyAttackLedger = new Set();
+    let lastAttackDuration = 0;
+    let audioCtx = null;
+    let masterGain = null;
+    let bgmGain = null;
+    let bgmAudio = null;
+    let dragHum = null;
+    let gameOverBgmTimer = null;
+    let pendingPointerMove = null;
+    let pointerMoveFrame = null;
+    let bgmVolume = 0.5;
+    let seVolume = 0.5;
+    let partyState = [];
+    let gameStarted = false;
+
+    const initialPieces = [
+      { id: "p", type: "player", label: "P", skill: "none", col: 2, row: 6, hp: 100, maxHp: 100 },
+      { id: "a1", type: "ally", label: "A", skill: "yellow", col: 1, row: 6, hp: 82, maxHp: 82 },
+      { id: "a2", type: "ally", label: "A", skill: "red", col: 4, row: 6, hp: 82, maxHp: 82 },
+      { id: "a3", type: "ally", label: "A", skill: "blue", col: 2, row: 4, hp: 82, maxHp: 82 },
+      { id: "e1", type: "enemy", label: "E", col: 2, row: 2, hp: 88, maxHp: 88 },
+      { id: "e2", type: "enemy", label: "E", col: 5, row: 0, hp: 88, maxHp: 88 },
+      { id: "e3", type: "enemy", label: "E", col: 0, row: 3, hp: 88, maxHp: 88 },
+      { id: "e4", type: "enemy", label: "E", col: 5, row: 3, hp: 92, maxHp: 92 },
+      { id: "e5", type: "enemy", label: "E", col: 0, row: 0, hp: 96, maxHp: 96 },
+      { id: "e6", type: "enemy", label: "E", col: 5, row: 5, hp: 100, maxHp: 100 },
+      { id: "boss", type: "enemy", label: "B", boss: true, size: 2, col: 2, row: 2, hp: 440, maxHp: 440 }
+    ];
+
+    function createRandomPieces() {
+      const enemyCount = Math.min(currentStage + 1, 6);
+      const friendlyTemplates = partyState.map(piece => ({ ...piece }));
+      const enemyTemplates = initialPieces
+        .filter(piece => {
+          if (piece.boss) return currentStage === MAX_STAGE;
+          if (piece.type !== "enemy") return false;
+          return Number(piece.id.slice(1)) <= enemyCount;
+        })
+        .map(({ id, type, label, skill, boss, size, hp, maxHp }) => {
+          const stageHpBonus = type === "enemy" && !boss ? (currentStage - 1) * 10 : 0;
+          return { id, type, label, skill, boss, size: size || 1, hp: hp + stageHpBonus, maxHp: maxHp + stageHpBonus };
+        });
+      const templates = [...friendlyTemplates, ...enemyTemplates];
+      const cells = [];
+      for (let row = 0; row < ROWS; row += 1) {
+        for (let col = 0; col < COLS; col += 1) {
+          cells.push({ col, row });
+        }
+      }
+
+      shuffle(cells);
+      const placed = [];
+      templates.forEach(piece => {
+        const preferred = isFriendly(piece) && piece.col !== undefined && canPlacePieceAt(piece, piece.col, piece.row, placed)
+          ? { col: piece.col, row: piece.row }
+          : null;
+        const spot = preferred || cells.find(cell => canPlacePieceAt(piece, cell.col, cell.row, placed));
+        if (!spot) return;
+        piece.col = spot.col;
+        piece.row = spot.row;
+        placed.push(piece);
+      });
+      return placed;
+    }
+
+    function shuffle(items) {
+      for (let i = items.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+      return items;
+    }
+
+    function buildBoard() {
+      board.innerHTML = "";
+      for (let i = 0; i < COLS * ROWS; i += 1) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        board.appendChild(cell);
+      }
+    }
+
+    function resetGame() {
+      unlockAudio();
+      stopFanfare();
+      stopGameOverBgm();
+      clearClearScreen();
+      clearTurnTimers();
+      clearPause();
+      gameStarted = true;
+      titleScreen.style.display = "none";
+      currentStage = 1;
+      partyState = createInitialPartyState();
+      startStage(currentStage);
+    }
+
+    function showTitleScreen() {
+      clearTurnTimers();
+      clearClearScreen();
+      clearPause();
+      stopDragSound();
+      stopGameOverBgm();
+      gameStarted = false;
+      titleScreen.style.display = "grid";
+      turn = "title";
+      stopBattleBgm();
+      startTitleBgm();
+    }
+
+    function createInitialPartyState() {
+      return initialPieces
+        .filter(piece => isFriendly(piece))
+        .map(({ id, type, label, skill, size, hp, maxHp }) => ({ id, type, label, skill, size: size || 1, hp, maxHp }));
+    }
+
+    function startStage(stage) {
+      clearTurnTimers();
+      enemySequenceRunning = false;
+      enemyAttackLedger = new Set();
+      clearChainLines();
+      pieces = createRandomPieces().map(piece => ({ ...piece, dropIn: true }));
+      dragging = false;
+      activePointer = null;
+      activePieceId = null;
+      playerTurnRemaining = TURN_MS;
+      timerFill.style.transform = "scaleX(1)";
+      turn = "intro";
+      stageTitle.textContent = `STAGE ${stage}`;
+      document.title = `STAGE ${stage}`;
+      statusEl.textContent = `STAGE ${stage}`;
+      startBattleBgm();
+      renderPieces();
+      playDropSound();
+      showTurnBanner("stage", `STAGE ${stage}`);
+      schedule(() => {
+        if (turn === "intro") startPlayerTurn(false);
+      }, 1040);
+    }
+
+    function updateMeasurements() {
+      cellSize = wrap.clientWidth / COLS;
+      renderPieces();
+    }
+
+    function pieceCenter(piece) {
+      const size = pieceSize(piece);
+      return {
+        x: (piece.col + size / 2) * cellSize,
+        y: (piece.row + size / 2) * cellSize
+      };
+    }
+
+    function renderPieces() {
+      const aliveIds = new Set();
+
+      pieces.forEach(piece => {
+        if (piece.hp <= 0 && !piece.pendingDefeat && !piece.bossDissolving) return;
+        aliveIds.add(piece.id);
+        let el = document.querySelector(`[data-id="${piece.id}"]`);
+        if (!el) {
+          el = createPieceElement(piece);
+          piecesLayer.appendChild(el);
+        }
+
+        const center = pieceCenter(piece);
+        const dropClass = piece.dropIn ? " drop-in" : "";
+        const dissolveClass = piece.bossDissolving ? " boss-dissolve" : "";
+        const imageSrc = pieceImageSrc(piece);
+        const imageClass = imageSrc ? " has-image" : "";
+        el.className = `piece ${piece.type}${imageClass}${piece.id === activePieceId && dragging ? " dragging" : ""}${dropClass}${dissolveClass}`;
+        el.querySelector(".mark").textContent = piece.label;
+        const image = el.querySelector(".piece-image");
+        if (image) image.src = imageSrc;
+        const visualSize = cellSize * (pieceSize(piece) - 0.28);
+        el.style.width = `${visualSize}px`;
+        el.style.height = `${visualSize}px`;
+        el.style.left = `${center.x}px`;
+        el.style.top = `${center.y}px`;
+
+        const hpfill = el.querySelector(".hpfill");
+        hpfill.style.transform = `scaleX(${Math.max(0, piece.hp / piece.maxHp)})`;
+        const skillIcon = el.querySelector(".skill-icon");
+        if (skillIcon) {
+          skillIcon.style.setProperty("--skill-color", skillColor(piece.skill));
+          skillIcon.src = skillIconSrc(piece.skill);
+        }
+      });
+
+      document.querySelectorAll(".piece").forEach(el => {
+        if (!aliveIds.has(el.dataset.id)) el.remove();
+      });
+
+      pieces.forEach(piece => {
+        if (piece.dropIn) delete piece.dropIn;
+      });
+    }
+
+    function createPieceElement(piece) {
+      const el = document.createElement("div");
+      el.dataset.id = piece.id;
+
+      const mark = document.createElement("span");
+      mark.className = "mark";
+      el.appendChild(mark);
+
+      const imageSrc = pieceImageSrc(piece);
+      if (imageSrc) {
+        const image = document.createElement("img");
+        image.className = "piece-image";
+        image.alt = "";
+        image.draggable = false;
+        image.src = imageSrc;
+        el.appendChild(image);
+      }
+
+      const hpbar = document.createElement("div");
+      hpbar.className = "hpbar";
+      const hpfill = document.createElement("div");
+      hpfill.className = "hpfill";
+      hpbar.appendChild(hpfill);
+      el.appendChild(hpbar);
+
+      if (isFriendly(piece) && piece.skill !== "none") {
+        const skillIcon = document.createElement("img");
+        skillIcon.className = "skill-icon";
+        skillIcon.alt = "";
+        skillIcon.draggable = false;
+        skillIcon.src = skillIconSrc(piece.skill);
+        skillIcon.style.setProperty("--skill-color", skillColor(piece.skill));
+        el.appendChild(skillIcon);
+      }
+
+      if (isFriendly(piece)) {
+        el.addEventListener("pointerdown", startDrag);
+      }
+      return el;
+    }
+
+    function pieceImageSrc(piece) {
+      if (piece.boss) return BOSS_IMAGE_SRC;
+      if (isFriendly(piece)) return PLAYER_IMAGE_BY_SKILL[piece.skill] || "";
+      if (piece.type !== "enemy") return "";
+      const index = Math.max(0, (Number(piece.id.replace(/\D/g, "")) || 1) - 1) % ENEMY_IMAGE_SRCS.length;
+      return ENEMY_IMAGE_SRCS[index];
+    }
+
+    function skillIconSrc(skill) {
+      return SKILL_ICON_BY_SKILL[skill] || "";
+    }
+
+    function isFriendly(piece) {
+      return piece.type === "player" || piece.type === "ally";
+    }
+
+    function livingPieces(type) {
+      return pieces.filter(piece => piece.type === type && piece.hp > 0);
+    }
+
+    function livingFriendlies() {
+      return pieces.filter(piece => isFriendly(piece) && piece.hp > 0);
+    }
+
+    function findPieceAt(col, row, types = null) {
+      return pieces.find(piece => {
+        const typeMatches = !types || types.includes(piece.type);
+        return typeMatches && piece.hp > 0 && pieceOccupies(piece, col, row);
+      });
+    }
+
+    function pieceSize(piece) {
+      return piece.size || 1;
+    }
+
+    function occupiedCells(piece, col = piece.col, row = piece.row) {
+      const cells = [];
+      const size = pieceSize(piece);
+      for (let y = row; y < row + size; y += 1) {
+        for (let x = col; x < col + size; x += 1) {
+          cells.push({ col: x, row: y });
+        }
+      }
+      return cells;
+    }
+
+    function pieceOccupies(piece, col, row) {
+      return occupiedCells(piece).some(cell => cell.col === col && cell.row === row);
+    }
+
+    function piecesOverlap(a, b, aCol = a.col, aRow = a.row, bCol = b.col, bRow = b.row) {
+      const bCells = occupiedCells(b, bCol, bRow);
+      return occupiedCells(a, aCol, aRow).some(aCell => {
+        return bCells.some(bCell => bCell.col === aCell.col && bCell.row === aCell.row);
+      });
+    }
+
+    function canPlacePieceAt(piece, col, row, pool = pieces.filter(item => item.hp > 0 && item.id !== piece.id)) {
+      const size = pieceSize(piece);
+      if (col < 0 || row < 0 || col + size > COLS || row + size > ROWS) return false;
+      return !pool.some(other => piecesOverlap(piece, other, col, row));
+    }
+
+    function startDrag(event) {
+      if (paused || turn !== "player" || dragging) return;
+      unlockAudio();
+      const target = pieces.find(piece => piece.id === event.currentTarget.dataset.id && piece.hp > 0);
+      if (!target || !isFriendly(target)) return;
+
+      dragging = true;
+      activePointer = event.pointerId;
+      activePieceId = target.id;
+      turnStartedAt = performance.now();
+      playerTurnRemaining = TURN_MS;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.classList.add("dragging");
+      statusEl.textContent = `${target.label}を移動中`;
+      startDragSound();
+      clearTurnTimers();
+      forcedEndId = window.setTimeout(() => endPlayerTurn(true), playerTurnRemaining);
+      timerId = window.setInterval(updateTimer, 50);
+      moveActivePieceToPointer(event);
+    }
+
+    function onPointerMove(event) {
+      if (paused || !dragging || event.pointerId !== activePointer || turn !== "player") return;
+      pendingPointerMove = {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        pointerId: event.pointerId
+      };
+      if (pointerMoveFrame) return;
+      pointerMoveFrame = window.requestAnimationFrame(() => {
+        pointerMoveFrame = null;
+        if (!pendingPointerMove) return;
+        const point = pendingPointerMove;
+        pendingPointerMove = null;
+        if (paused || !dragging || point.pointerId !== activePointer || turn !== "player") return;
+        moveActivePieceToPointer(point);
+      });
+    }
+
+    function onPointerUp(event) {
+      if (!dragging || event.pointerId !== activePointer) return;
+      if (pointerMoveFrame) {
+        window.cancelAnimationFrame(pointerMoveFrame);
+        pointerMoveFrame = null;
+      }
+      pendingPointerMove = null;
+      endPlayerTurn(false);
+    }
+
+    function moveActivePieceToPointer(event) {
+      const activePiece = pieces.find(piece => piece.id === activePieceId && piece.hp > 0);
+      if (!activePiece) return;
+
+      const rect = wrap.getBoundingClientRect();
+      const x = clamp(event.clientX - rect.left, cellSize / 2, wrap.clientWidth - cellSize / 2);
+      const y = clamp(event.clientY - rect.top, cellSize / 2, wrap.clientHeight - cellSize / 2);
+      const col = clamp(Math.floor(x / cellSize), 0, COLS - 1);
+      const row = clamp(Math.floor(y / cellSize), 0, ROWS - 1);
+
+      if (findPieceAt(col, row, ["enemy"])) {
+        const center = pieceCenter(activePiece);
+        statusEl.textContent = "敵のマスには止まれない";
+        placeActiveElement(center.x, center.y);
+        return;
+      }
+
+      const otherFriendly = livingFriendlies().find(piece => {
+        return piece.id !== activePiece.id && piece.col === col && piece.row === row;
+      });
+
+      if (otherFriendly) {
+        const previous = { col: activePiece.col, row: activePiece.row };
+        activePiece.col = otherFriendly.col;
+        activePiece.row = otherFriendly.row;
+        otherFriendly.col = previous.col;
+        otherFriendly.row = previous.row;
+        statusEl.textContent = "味方と入れ替え";
+        renderPieces();
+        renderChainLines();
+        return;
+      }
+
+      activePiece.col = col;
+      activePiece.row = row;
+      placeActiveElement(x, y);
+      renderChainLines();
+    }
+
+    function placeActiveElement(x, y) {
+      const el = document.querySelector(`[data-id="${activePieceId}"]`);
+      if (!el) return;
+      el.classList.add("dragging");
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+    }
+
+    function renderChainLines() {
+      clearChainLines();
+      const plans = buildAttackPlans("player", false);
+      if (plans.length > 0) {
+        plans.forEach(plan => drawChainGroup(plan.skillAttackers));
+        return;
+      }
+      if (!dragging) return;
+      const activePiece = pieces.find(piece => piece.id === activePieceId && piece.hp > 0);
+      if (!activePiece) return;
+      const linked = livingFriendlies().filter(piece => {
+        return piece.id !== activePiece.id && areAlignedPieces(activePiece, piece);
+      });
+      linked.forEach(piece => drawChainLine(activePiece, piece));
+    }
+
+    function drawChainGroup(group) {
+      for (let i = 0; i < group.length; i += 1) {
+        for (let j = i + 1; j < group.length; j += 1) {
+          if (areAlignedPieces(group[i], group[j])) drawChainLine(group[i], group[j]);
+        }
+      }
+    }
+
+    function drawChainLine(fromPiece, toPiece) {
+      const from = pieceCenter(fromPiece);
+      const to = pieceCenter(toPiece);
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const length = Math.hypot(dx, dy);
+      if (length <= 0) return;
+      const line = document.createElement("div");
+      line.className = "chain-line";
+      line.style.left = `${from.x}px`;
+      line.style.top = `${from.y - 8}px`;
+      line.style.width = `${length}px`;
+      line.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+      chainLinesLayer.appendChild(line);
+    }
+
+    function clearChainLines() {
+      chainLinesLayer.innerHTML = "";
+    }
+
+    function endPlayerTurn(forced) {
+      if (paused) return;
+      if (!dragging && turn !== "player") return;
+      dragging = false;
+      activePointer = null;
+      activePieceId = null;
+      stopDragSound();
+      clearTurnTimers();
+      timerFill.style.transform = "scaleX(1)";
+      renderPieces();
+      const hit = resolveSandwichAttacks("player");
+      if (hit) renderChainLines();
+      if (!hit) clearChainLines();
+
+      if (isGameOver()) return;
+
+      turn = "enemy";
+      statusEl.textContent = forced ? "時間切れ。敵のターン" : "敵のターン";
+      schedule(() => {
+        clearChainLines();
+        if (turn !== "enemy") return;
+        showTurnBanner("enemy");
+        schedule(enemyTurn, TURN_DELAY_MS);
+      }, hit ? attackResolutionDelay() : 80);
+    }
+
+    function clearTurnTimers() {
+      window.clearInterval(timerId);
+      window.clearTimeout(forcedEndId);
+      timerId = null;
+      forcedEndId = null;
+    }
+
+    function updateTimer() {
+      if (!dragging || paused) return;
+      const elapsed = performance.now() - turnStartedAt;
+      const remain = clamp(1 - elapsed / playerTurnRemaining, 0, 1);
+      timerFill.style.transform = `scaleX(${remain})`;
+    }
+
+    function resolveSandwichAttacks(source) {
+      const plans = buildAttackPlans(source, true);
+      if (plans.length === 0) {
+        lastAttackDuration = 0;
+        return false;
+      }
+
+      let elapsed = 0;
+      plans.forEach(plan => {
+        let attackingPieces = plan.attackers;
+        if (source === "enemy") {
+          attackingPieces = attackingPieces.filter(attacker => !enemyAttackLedger.has(attacker.id));
+        }
+        if (attackingPieces.length === 0) return;
+        attackingPieces.forEach((attacker, index) => {
+          if (source === "enemy") enemyAttackLedger.add(attacker.id);
+          schedule(() => {
+            if (source === "player") showCutin(attacker, plan.target);
+            damagePiece(plan.target, attackDamageFor(source, attacker), index, source);
+          }, elapsed + index * DAMAGE_SEQUENCE_MS);
+        });
+        const skillCapableAttackers = source === "player"
+          ? plan.skillAttackers.filter(attacker => attacker.skill !== "none")
+          : [];
+        if (source === "player") {
+          const skillAttacks = skillCapableAttackers.map(attacker => ({ attacker, target: plan.target }));
+          schedule(() => runSkillAttacks(skillAttacks), elapsed + attackingPieces.length * DAMAGE_SEQUENCE_MS + 120);
+        }
+        elapsed += calculatePlanDuration(source, attackingPieces.length, skillCapableAttackers.length);
+      });
+
+      lastAttackDuration = elapsed;
+      schedule(removeDefeated, Math.max(420, lastAttackDuration - 280));
+      return true;
+    }
+
+    function attackDamageFor(source, attacker) {
+      if (source === "player") return Math.round(FRIENDLY_DAMAGE * (attacker.skill === "none" ? 1.2 : 1));
+      return Math.round(ENEMY_DAMAGE * (attacker.boss ? 1.5 : 1));
+    }
+
+    function buildAttackPlans(source, respectEnemyLedger) {
+      const attackers = source === "player" ? livingFriendlies() : livingPieces("enemy");
+      const targets = (source === "player" ? livingPieces("enemy") : livingFriendlies())
+        .slice()
+        .sort((a, b) => a.row - b.row || a.col - b.col);
+
+      return targets.map(target => {
+        const pairs = findAttackPairs(target, attackers);
+        if (pairs.length === 0) return null;
+        let attackingPieces = uniquePieces(pairs.flat());
+        if (respectEnemyLedger && source === "enemy") {
+          attackingPieces = attackingPieces.filter(attacker => !enemyAttackLedger.has(attacker.id));
+        }
+        if (attackingPieces.length === 0) return null;
+        return {
+          target,
+          attackers: attackingPieces,
+          skillAttackers: source === "player" ? collectSkillChainAttackers(attackingPieces) : []
+        };
+      }).filter(Boolean);
+    }
+
+    function calculatePlanDuration(source, normalHitCount, skillCount) {
+      const normalDuration = Math.max(1, normalHitCount) * DAMAGE_SEQUENCE_MS + DAMAGE_DISPLAY_MS;
+      if (source !== "player" || skillCount === 0) return normalDuration;
+      return normalHitCount * DAMAGE_SEQUENCE_MS + 120 + SKILL_BANNER_MS + Math.max(0, skillCount - 1) * 110 + SKILL_PROJECTILE_MS + DAMAGE_DISPLAY_MS;
+    }
+
+    function findAttackPair(target, attackers) {
+      return findAttackPairs(target, attackers)[0] || null;
+    }
+
+    function findAttackPairs(target, attackers) {
+      const matchedPairs = [];
+      [...attackNeighborPairs(target), ...lineSandwichPairs(target, attackers)].forEach(pair => {
+        const first = attackers.find(piece => pieceOccupies(piece, pair[0].col, pair[0].row));
+        const second = attackers.find(piece => pieceOccupies(piece, pair[1].col, pair[1].row));
+        if (first && second && first.id !== second.id) matchedPairs.push([first, second]);
+      });
+      return dedupePairs(matchedPairs);
+    }
+
+    function lineSandwichPairs(target, attackers) {
+      const pairs = [];
+      occupiedCells(target).forEach(cell => {
+        const left = scanForLineAttacker(cell, { col: -1, row: 0 }, attackers, target.type);
+        const right = scanForLineAttacker(cell, { col: 1, row: 0 }, attackers, target.type);
+        const up = scanForLineAttacker(cell, { col: 0, row: -1 }, attackers, target.type);
+        const down = scanForLineAttacker(cell, { col: 0, row: 1 }, attackers, target.type);
+        if (left && right) pairs.push([left, right]);
+        if (up && down) pairs.push([up, down]);
+      });
+      return pairs.map(pair => pair.map(piece => ({ col: piece.col, row: piece.row })));
+    }
+
+    function scanForLineAttacker(cell, delta, attackers, targetType) {
+      let col = cell.col + delta.col;
+      let row = cell.row + delta.row;
+      while (isInsideBoard({ col, row })) {
+        const attacker = attackers.find(piece => pieceOccupies(piece, col, row));
+        if (attacker) return attacker;
+        const occupant = findPieceAt(col, row);
+        if (!occupant || occupant.type !== targetType) return null;
+        col += delta.col;
+        row += delta.row;
+      }
+      return null;
+    }
+
+    function dedupePairs(pairs) {
+      const seen = new Set();
+      return pairs.filter(pair => {
+        const key = pair.map(piece => piece.id || `${piece.col},${piece.row}`).sort().join("|");
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function uniquePieces(items) {
+      const seen = new Set();
+      return items.filter(piece => {
+        if (seen.has(piece.id)) return false;
+        seen.add(piece.id);
+        return true;
+      });
+    }
+
+    function collectSkillChainAttackers(seedAttackers) {
+      const chain = uniquePieces(seedAttackers);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        livingFriendlies().forEach(candidate => {
+          if (chain.some(piece => piece.id === candidate.id)) return;
+          const aligned = chain.some(piece => areAlignedPieces(piece, candidate));
+          if (aligned) {
+            chain.push(candidate);
+            changed = true;
+          }
+        });
+      }
+      return chain;
+    }
+
+    function areAlignedPieces(a, b) {
+      return occupiedCells(a).some(aCell => {
+        return occupiedCells(b).some(bCell => aCell.col === bCell.col || aCell.row === bCell.row);
+      });
+    }
+
+    function areAdjacentPieces(a, b) {
+      return occupiedCells(a).some(aCell => {
+        return occupiedCells(b).some(bCell => {
+          const dx = Math.abs(aCell.col - bCell.col);
+          const dy = Math.abs(aCell.row - bCell.row);
+          return dx + dy === 1;
+        });
+      });
+    }
+
+    function attackNeighborPairs(target) {
+      const size = pieceSize(target);
+      const pairs = [];
+      for (let row = target.row; row < target.row + size; row += 1) {
+        pairs.push([{ col: target.col - 1, row }, { col: target.col + size, row }]);
+      }
+      for (let col = target.col; col < target.col + size; col += 1) {
+        pairs.push([{ col, row: target.row - 1 }, { col, row: target.row + size }]);
+      }
+      const left = { col: target.col - 1, row: target.row };
+      const right = { col: target.col + size, row: target.row };
+      const up = { col: target.col, row: target.row - 1 };
+      const down = { col: target.col, row: target.row + size };
+      const edgePairs = [[left, up], [up, right], [right, down], [down, left]];
+      const validPairs = pairs.filter(pair => pair.every(isInsideBoard));
+
+      if (target.col === 0 || target.col + size === COLS || target.row === 0 || target.row + size === ROWS) {
+        edgePairs
+          .filter(pair => pair.every(isInsideBoard))
+          .forEach(pair => validPairs.push(pair));
+      }
+
+      return validPairs;
+    }
+
+    function damagePiece(piece, amount, offsetIndex = 0, source = "player") {
+      if (!pieces.includes(piece)) return;
+      playAttackSound(source);
+      piece.hp = Math.max(0, piece.hp - amount);
+      if (piece.hp <= 0) piece.pendingDefeat = true;
+      const center = pieceCenter(piece);
+      const offset = (offsetIndex - 0.5) * cellSize * 0.18;
+      showDamage(center.x + offset, center.y, amount);
+      const el = document.querySelector(`[data-id="${piece.id}"]`);
+      if (el) {
+        el.classList.remove("attack-flash");
+        void el.offsetWidth;
+        el.classList.add("attack-flash");
+      }
+      renderPieces();
+    }
+
+    function showCutin(attacker, target) {
+      const src = CUTIN_IMAGE_BY_SKILL[attacker.skill];
+      if (!src) return;
+      const el = document.createElement("div");
+      el.className = `cutin ${cutinDirection(attacker, target)}`;
+      const img = document.createElement("img");
+      img.src = src;
+      img.alt = "";
+      el.appendChild(img);
+      effectsLayer.appendChild(el);
+      window.setTimeout(() => el.remove(), 840);
+    }
+
+    function cutinDirection(attacker, target) {
+      const from = pieceCenter(attacker);
+      const to = pieceCenter(target);
+      const dx = from.x - to.x;
+      const dy = from.y - to.y;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        return dx < 0 ? "from-top" : "from-bottom";
+      }
+      return dy < 0 ? "from-bottom" : "from-top";
+    }
+
+    function runSkillAttacks(skillAttacks) {
+      const seen = new Set();
+      const validAttacks = skillAttacks.filter(({ attacker, target }) => {
+        const key = `${attacker.id}->${target.id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return attacker.hp > 0 && pieces.includes(attacker) && pieces.includes(target);
+      });
+      if (validAttacks.length === 0) return;
+
+      showTurnBanner("stage", "SKILLS ATTACK");
+      validAttacks.forEach(({ attacker, target }, index) => {
+        schedule(() => {
+          fireSkillBall(attacker, target);
+        }, SKILL_BANNER_MS + index * 110);
+      });
+    }
+
+    function fireSkillBall(attacker, target) {
+      if (attacker.hp <= 0 || !pieces.includes(target)) return;
+      const from = pieceCenter(attacker);
+      const to = pieceCenter(target);
+      const ball = document.createElement("img");
+      ball.className = "skill-ball";
+      ball.alt = "";
+      ball.draggable = false;
+      ball.src = skillIconSrc(attacker.skill);
+      ball.style.setProperty("--skill-color", skillColor(attacker.skill));
+      ball.style.setProperty("--from-x", `${from.x}px`);
+      ball.style.setProperty("--from-y", `${from.y}px`);
+      ball.style.setProperty("--dx", `${to.x - from.x}px`);
+      ball.style.setProperty("--dy", `${to.y - from.y}px`);
+      ball.style.setProperty("--arc", `${Math.max(cellSize * 0.85, Math.abs(to.x - from.x) * 0.18 + Math.abs(to.y - from.y) * 0.12)}px`);
+      effectsLayer.appendChild(ball);
+      playSkillSound(attacker.skill);
+
+      schedule(() => {
+        ball.remove();
+        damagePiece(target, Math.round(FRIENDLY_DAMAGE * SKILL_DAMAGE_MULTIPLIER), 0, "player");
+      }, SKILL_PROJECTILE_MS);
+    }
+
+    function skillColor(skill) {
+      if (skill === "yellow") return "#ffcf5a";
+      if (skill === "red") return "#ff5e5e";
+      if (skill === "none") return "#e7f1f7";
+      return "#63d8ff";
+    }
+
+    function showDamage(x, y, amount) {
+      const el = document.createElement("div");
+      el.className = "damage";
+      el.textContent = amount;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      effectsLayer.appendChild(el);
+      window.setTimeout(() => el.remove(), 900);
+    }
+
+    function removeDefeated() {
+      const defeated = pieces.filter(piece => piece.hp <= 0);
+      if (defeated.length > 0) {
+        defeated.forEach((piece, index) => {
+          schedule(() => playDefeatSound(piece.type), index * 90);
+        });
+        syncPartyAfterDefeat(defeated);
+      }
+      const dissolvingBoss = defeated.find(piece => piece.boss && currentStage === MAX_STAGE);
+      if (dissolvingBoss && !dissolvingBoss.bossDissolving) {
+        dissolvingBoss.bossDissolving = true;
+        dissolvingBoss.pendingDefeat = true;
+        turn = "bossDissolve";
+        renderPieces();
+        clearChainLines();
+        schedule(() => {
+          pieces = pieces.filter(piece => piece.id !== dissolvingBoss.id);
+          renderPieces();
+          if (!isGameOver()) startPlayerTurn(false);
+        }, 5000);
+        return;
+      }
+
+      pieces = pieces.filter(piece => piece.hp > 0 || piece.bossDissolving).map(piece => {
+        if (!piece.bossDissolving) delete piece.pendingDefeat;
+        return piece;
+      });
+      clearChainLines();
+      renderPieces();
+      isGameOver();
+    }
+
+    function syncPartyAfterDefeat(defeated) {
+      const defeatedIds = new Set(defeated.filter(piece => isFriendly(piece)).map(piece => piece.id));
+      if (defeatedIds.size === 0) return;
+      partyState = partyState.filter(piece => !defeatedIds.has(piece.id));
+    }
+
+    function savePartyHp() {
+      const livingById = new Map(livingFriendlies().map(piece => [piece.id, piece]));
+      partyState = partyState
+        .filter(piece => livingById.has(piece.id))
+        .map(piece => {
+          const live = livingById.get(piece.id);
+          return { ...piece, hp: live.hp, maxHp: live.maxHp, col: live.col, row: live.row };
+        });
+    }
+
+    function enemyTurn() {
+      if (paused || turn !== "enemy" || enemySequenceRunning) return;
+      enemySequenceRunning = true;
+      enemyAttackLedger = new Set();
+      moveEnemyAtIndex(0, false);
+    }
+
+    function moveEnemyAtIndex(index, anyHit) {
+      if (paused) {
+        schedule(() => moveEnemyAtIndex(index, anyHit), 120);
+        return;
+      }
+      if (turn !== "enemy") return;
+
+      const enemies = livingPieces("enemy");
+      if (index >= enemies.length) {
+        enemySequenceRunning = false;
+        if (!isGameOver()) startPlayerTurn(anyHit);
+        return;
+      }
+
+      const enemy = enemies[index];
+      const path = planEnemyPath(enemy, ENEMY_MOVE_STEPS);
+      animateEnemyPath(enemy, path, () => {
+        const hit = resolveSandwichAttacks("enemy");
+        schedule(() => {
+          removeDefeated();
+          if (isGameOver()) return;
+          moveEnemyAtIndex(index + 1, anyHit || hit);
+        }, hit ? normalAttackResolutionDelay() : 180);
+      });
+    }
+
+    function animateEnemyPath(enemy, path, done) {
+      if (paused) {
+        schedule(() => animateEnemyPath(enemy, path, done), 120);
+        return;
+      }
+      if (turn !== "enemy" || enemy.hp <= 0 || path.length === 0) {
+        done();
+        return;
+      }
+
+      const next = path.shift();
+      enemy.col = next.col;
+      enemy.row = next.row;
+      renderPieces();
+      schedule(() => animateEnemyPath(enemy, path, done), ENEMY_STEP_MS);
+    }
+
+    function planEnemyPath(enemy, maxSteps) {
+      const path = [];
+      const visited = new Set([positionKey(enemy)]);
+      const virtualEnemy = { ...enemy };
+
+      for (let step = 0; step < maxSteps; step += 1) {
+        if (canAttackNowWithEnemy(virtualEnemy)) break;
+        const target = nearestPiece(virtualEnemy, livingFriendlies());
+        if (!target) break;
+
+        const next = bestEnemyMove(virtualEnemy, target, visited);
+        if (!next || positionKey(next) === positionKey(virtualEnemy)) break;
+
+        virtualEnemy.col = next.col;
+        virtualEnemy.row = next.row;
+        visited.add(positionKey(virtualEnemy));
+        path.push({ col: virtualEnemy.col, row: virtualEnemy.row });
+
+        if (canAttackNowWithEnemy(virtualEnemy)) break;
+      }
+
+      return path;
+    }
+
+    function startPlayerTurn(wasHit = false) {
+      turn = "player";
+      statusEl.textContent = wasHit ? "攻撃を受けた。PかAをドラッグ" : "PかAをドラッグして開始";
+      showTurnBanner("player");
+    }
+
+    function showTurnBanner(side, text = null) {
+      const el = document.createElement("div");
+      const className = side === "player" ? "player-turn" : side === "enemy" ? "enemy-turn" : "stage-turn";
+      el.className = `turn-banner ${className}`;
+      el.textContent = text || (side === "player" ? "Player Turn" : "Enemy Turn");
+      effectsLayer.appendChild(el);
+      schedule(() => el.remove(), 920);
+    }
+
+    function togglePause() {
+      if (!gameStarted || turn === "done") return;
+      paused = !paused;
+      if (paused) {
+        showPause();
+        stopDragSound();
+        if (dragging) {
+          const elapsed = performance.now() - turnStartedAt;
+          playerTurnRemaining = Math.max(250, playerTurnRemaining - elapsed);
+          clearTurnTimers();
+        }
+      } else {
+        clearPause();
+        if (dragging) {
+          turnStartedAt = performance.now();
+          forcedEndId = window.setTimeout(() => endPlayerTurn(true), playerTurnRemaining);
+          timerId = window.setInterval(updateTimer, 50);
+          startDragSound();
+        }
+      }
+    }
+
+    function showPause() {
+      if (document.querySelector(".pause-screen")) return;
+      const screen = document.createElement("div");
+      screen.className = "pause-screen";
+      screen.style.pointerEvents = "auto";
+
+      const panel = document.createElement("div");
+      panel.className = "pause-panel";
+
+      const title = document.createElement("div");
+      title.className = "pause-title";
+      title.textContent = "PAUSE MENU";
+
+      panel.appendChild(title);
+      panel.appendChild(createVolumeRow("BGM", bgmVolume, value => {
+        bgmVolume = value;
+        applyBgmVolume();
+      }));
+      panel.appendChild(createVolumeRow("SE", seVolume, value => {
+        seVolume = value;
+        applySeVolume();
+      }));
+
+      const titleButton = document.createElement("button");
+      titleButton.className = "pause-menu-button";
+      titleButton.type = "button";
+      titleButton.textContent = "タイトルに戻る";
+      titleButton.addEventListener("click", showTitleScreen);
+      panel.appendChild(titleButton);
+
+      screen.appendChild(panel);
+      effectsLayer.appendChild(screen);
+    }
+
+    function createVolumeRow(labelText, value, onInput) {
+      const row = document.createElement("label");
+      row.className = "volume-row";
+      const label = document.createElement("span");
+      label.textContent = labelText;
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.min = "0";
+      slider.max = "1";
+      slider.step = "0.01";
+      slider.value = String(value);
+      slider.addEventListener("input", () => onInput(Number(slider.value)));
+      row.appendChild(label);
+      row.appendChild(slider);
+      return row;
+    }
+
+    function clearPause() {
+      paused = false;
+      const screen = document.querySelector(".pause-screen");
+      if (screen) screen.remove();
+    }
+
+    function schedule(callback, delay) {
+      return window.setTimeout(() => {
+        if (paused) {
+          schedule(callback, 100);
+          return;
+        }
+        callback();
+      }, delay);
+    }
+
+    function showStageClear() {
+      if (document.querySelector(".clear-screen")) return;
+      playFanfare();
+
+      const screen = document.createElement("div");
+      screen.className = "clear-screen";
+
+      const panel = document.createElement("div");
+      panel.className = "clear-panel";
+
+      const title = document.createElement("div");
+      title.className = "clear-title";
+      title.textContent = "STAGE CLEAR！";
+
+      const button = document.createElement("button");
+      button.className = "replay-button";
+      button.type = "button";
+      button.textContent = "RETRY";
+      button.addEventListener("click", resetGame);
+
+      panel.appendChild(title);
+      panel.appendChild(button);
+      screen.appendChild(panel);
+      effectsLayer.appendChild(screen);
+    }
+
+    function showGameOver() {
+      if (document.querySelector(".clear-screen")) return;
+      playGameOverSound();
+      startGameOverBgm();
+
+      const screen = document.createElement("div");
+      screen.className = "clear-screen";
+
+      const panel = document.createElement("div");
+      panel.className = "clear-panel";
+
+      const title = document.createElement("div");
+      title.className = "gameover-title";
+      title.textContent = "GAME OVER";
+
+      const button = document.createElement("button");
+      button.className = "replay-button";
+      button.type = "button";
+      button.textContent = "RETRY";
+      button.addEventListener("click", resetGame);
+
+      panel.appendChild(title);
+      panel.appendChild(button);
+      screen.appendChild(panel);
+      effectsLayer.appendChild(screen);
+    }
+
+    function clearClearScreen() {
+      const screen = document.querySelector(".clear-screen");
+      if (screen) screen.remove();
+    }
+
+    function unlockAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        audioCtx = new AudioContext();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = seVolume * 0.32;
+        masterGain.connect(audioCtx.destination);
+        bgmGain = audioCtx.createGain();
+        bgmGain.gain.value = bgmVolume * 0.24;
+        bgmGain.connect(audioCtx.destination);
+      }
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(freq, duration = 0.12, type = "sine", volume = 0.45, when = 0) {
+      if (!audioCtx || !masterGain) return;
+      const start = audioCtx.currentTime + when;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(start);
+      osc.stop(start + duration + 0.02);
+    }
+
+    function playBgmTone(freq, duration = 0.4, type = "sine", volume = 0.28, when = 0) {
+      if (!audioCtx || !bgmGain) return;
+      const start = audioCtx.currentTime + when;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.connect(gain);
+      gain.connect(bgmGain);
+      osc.start(start);
+      osc.stop(start + duration + 0.06);
+    }
+
+    function startBattleBgm() {
+      stopGameOverBgm();
+      const src = currentStage === MAX_STAGE ? BOSS_BGM_SRC : BATTLE_BGM_SRC;
+      if (bgmAudio && bgmAudio.dataset.src === src && !bgmAudio.paused) {
+        applyBgmVolume();
+        return;
+      }
+      stopBattleBgm();
+      bgmAudio = new Audio(src);
+      bgmAudio.dataset.src = src;
+      bgmAudio.loop = true;
+      applyBgmVolume();
+      bgmAudio.play().catch(() => {});
+    }
+
+    function startTitleBgm() {
+      stopGameOverBgm();
+      if (bgmAudio && bgmAudio.dataset.src === TITLE_BGM_SRC && !bgmAudio.paused) {
+        applyBgmVolume();
+        return;
+      }
+      stopBattleBgm();
+      bgmAudio = new Audio(TITLE_BGM_SRC);
+      bgmAudio.dataset.src = TITLE_BGM_SRC;
+      bgmAudio.loop = true;
+      bgmAudio.volume = clamp(bgmVolume * 0.55, 0, 1);
+      bgmAudio.play().catch(() => {});
+    }
+
+    function stopBattleBgm() {
+      if (!bgmAudio) return;
+      bgmAudio.pause();
+      bgmAudio.currentTime = 0;
+      bgmAudio = null;
+    }
+
+    function stopFanfare() {
+      // Generated fanfare tones end by themselves; this hook keeps replay setup readable.
+    }
+
+    function startGameOverBgm() {
+      unlockAudio();
+      stopGameOverBgm();
+      playGameOverBgmPhrase();
+      gameOverBgmTimer = window.setInterval(playGameOverBgmPhrase, 2600);
+    }
+
+    function stopGameOverBgm() {
+      if (!gameOverBgmTimer) return;
+      window.clearInterval(gameOverBgmTimer);
+      gameOverBgmTimer = null;
+    }
+
+    function playGameOverBgmPhrase() {
+      playBgmTone(146.83, 0.72, "sine", 0.2, 0);
+      playBgmTone(110, 0.86, "triangle", 0.16, 0.46);
+      playBgmTone(98, 1.05, "sine", 0.18, 1.12);
+      playBgmTone(73.42, 1.1, "sine", 0.14, 1.72);
+    }
+
+    function startDragSound() {
+      if (dragHum) return;
+      dragHum = new Audio(DRAG_SOUND_SRC);
+      dragHum.loop = true;
+      dragHum.volume = seVolume * 0.72;
+      dragHum.currentTime = 0;
+      dragHum.play().catch(() => {
+        dragHum = null;
+      });
+    }
+
+    function stopDragSound() {
+      if (!dragHum) return;
+      dragHum.pause();
+      dragHum.currentTime = 0;
+      dragHum = null;
+    }
+
+    function playAttackSound(source = "player") {
+      playAudioClip(source === "enemy" ? ENEMY_ATTACK_SOUND_SRC : PLAYER_ATTACK_SOUND_SRC, 0.88);
+    }
+
+    function playAudioClip(src, volume = 0.7) {
+      const audio = new Audio(src);
+      audio.volume = clamp(seVolume * volume, 0, 1);
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
+
+    function applyBgmVolume() {
+      if (bgmGain) bgmGain.gain.value = bgmVolume * 0.24;
+      if (!bgmAudio) return;
+      const titleScale = !gameStarted ? 0.55 : 1;
+      bgmAudio.volume = clamp(bgmVolume * titleScale * (currentStage === MAX_STAGE ? 1 : 0.92), 0, 1);
+    }
+
+    function applySeVolume() {
+      if (masterGain) masterGain.gain.value = seVolume * 0.32;
+      if (dragHum) dragHum.volume = seVolume * 0.72;
+    }
+
+    function playDropSound() {
+      playTone(330, 0.12, "triangle", 0.2);
+      playTone(220, 0.16, "sine", 0.16, 0.06);
+      playTone(440, 0.1, "triangle", 0.14, 0.14);
+    }
+
+    function playDefeatSound(type) {
+      if (type === "enemy") {
+        playAudioClip(ENEMY_DEFEAT_SOUND_SRC, 0.9);
+        return;
+      }
+      playAudioClip(FRIENDLY_DEFEAT_SOUND_SRC, 0.9);
+      const base = type === "enemy" ? 150 : 190;
+      playTone(base * 1.4, 0.08, "square", 0.24);
+      playTone(base, 0.16, "triangle", 0.24, 0.05);
+      playTone(base * 0.52, 0.28, "sine", 0.2, 0.12);
+    }
+
+    function playSkillSound(skill) {
+      if (SKILL_SOUND_BY_SKILL[skill]) {
+        playAudioClip(SKILL_SOUND_BY_SKILL[skill], 0.86);
+        return;
+      }
+      const base = skill === "yellow" ? 660 : skill === "red" ? 440 : 740;
+      playTone(base, 0.1, "triangle", 0.24);
+      playTone(base * 1.5, 0.16, "sine", 0.18, 0.05);
+    }
+
+    function playFanfare() {
+      unlockAudio();
+      const notes = [523, 659, 784, 1046, 784, 1046, 1318];
+      notes.forEach((freq, index) => {
+        playTone(freq, index < 3 ? 0.16 : 0.28, "triangle", 0.35, index * 0.16);
+        if (index >= 3) playTone(freq / 2, 0.3, "sine", 0.2, index * 0.16);
+      });
+    }
+
+    function playGameOverSound() {
+      playTone(220, 0.18, "triangle", 0.28);
+      playTone(165, 0.22, "triangle", 0.24, 0.16);
+      playTone(110, 0.34, "sine", 0.22, 0.36);
+    }
+
+    function canAttackNow(source) {
+      const attackers = source === "player" ? livingFriendlies() : livingPieces("enemy");
+      const targets = source === "player" ? livingPieces("enemy") : livingFriendlies();
+      return targets.some(target => findAttackPair(target, attackers));
+    }
+
+    function canAttackNowWithEnemy(enemy) {
+      const attackers = livingPieces("enemy").map(piece => {
+        return piece.id === enemy.id ? enemy : piece;
+      });
+      return livingFriendlies().some(target => findAttackPair(target, attackers));
+    }
+
+    function bestEnemyMove(enemy, target, visited = new Set()) {
+      const options = legalEnemyMoves(enemy).filter(option => !visited.has(positionKey(option)));
+      const attackMove = options.find(option => {
+        const original = { col: enemy.col, row: enemy.row };
+        enemy.col = option.col;
+        enemy.row = option.row;
+        const canAttack = canAttackNowWithEnemy(enemy);
+        enemy.col = original.col;
+        enemy.row = original.row;
+        return canAttack;
+      });
+
+      if (attackMove) return attackMove;
+
+      return options.sort((a, b) => enemyMoveScore(enemy, a, target) - enemyMoveScore(enemy, b, target))[0];
+    }
+
+    function enemyMoveScore(enemy, option, target) {
+      const original = { col: enemy.col, row: enemy.row };
+      enemy.col = option.col;
+      enemy.row = option.row;
+      const nearest = nearestPiece(enemy, livingFriendlies()) || target;
+      const adjacentPressure = livingFriendlies().some(piece => distance(enemy, piece) <= pieceSize(enemy) + 1) ? -3 : 0;
+      const linePressure = livingFriendlies().some(piece => piece.col === enemy.col || piece.row === enemy.row) ? -2 : 0;
+      const score = distance(enemy, nearest) + distance(enemy, target) * 0.25 + adjacentPressure + linePressure;
+      enemy.col = original.col;
+      enemy.row = original.row;
+      return score;
+    }
+
+    function positionKey(pos) {
+      return `${pos.col},${pos.row}`;
+    }
+
+    function legalEnemyMoves(enemy) {
+      const deltas = [
+        { col: 0, row: -1 },
+        { col: 1, row: 0 },
+        { col: 0, row: 1 },
+        { col: -1, row: 0 }
+      ];
+      const occupied = pieces.filter(piece => piece.hp > 0 && piece.id !== enemy.id);
+      const moves = deltas
+        .map(delta => ({ col: enemy.col + delta.col, row: enemy.row + delta.row }))
+        .filter(pos => {
+          return canPlacePieceAt(enemy, pos.col, pos.row, occupied);
+        });
+      return moves.length ? moves : [{ col: enemy.col, row: enemy.row }];
+    }
+
+    function nearestPiece(from, targets) {
+      return targets.reduce((best, target) => {
+        if (!best) return target;
+        return distance(from, target) < distance(from, best) ? target : best;
+      }, null);
+    }
+
+    function distance(a, b) {
+      return Math.abs(a.col - b.col) + Math.abs(a.row - b.row);
+    }
+
+    function isGameOver() {
+      const playerAlive = livingPieces("player").length > 0;
+      const enemiesAlive = livingPieces("enemy").length > 0;
+      const friendlyCount = livingFriendlies().length;
+
+      if (!playerAlive || friendlyCount <= 1) {
+        turn = "done";
+        statusEl.textContent = "GAME OVER";
+        clearTurnTimers();
+        enemySequenceRunning = false;
+        stopBattleBgm();
+        stopDragSound();
+        showGameOver();
+        return true;
+      }
+      if (!enemiesAlive) {
+        clearTurnTimers();
+        stopDragSound();
+        enemySequenceRunning = false;
+        if (currentStage < MAX_STAGE) {
+          savePartyHp();
+          currentStage += 1;
+          turn = "intro";
+          statusEl.textContent = `STAGE ${currentStage}`;
+          schedule(() => startStage(currentStage), 900);
+        } else {
+          turn = "done";
+          statusEl.textContent = "STAGE CLEAR！";
+          stopBattleBgm();
+          showStageClear();
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function attackResolutionDelay() {
+      return lastAttackDuration || (DAMAGE_SEQUENCE_MS * 4 + SKILL_BANNER_MS + SKILL_PROJECTILE_MS + DAMAGE_DISPLAY_MS);
+    }
+
+    function normalAttackResolutionDelay() {
+      return lastAttackDuration || (DAMAGE_SEQUENCE_MS * 4 + DAMAGE_DISPLAY_MS);
+    }
+
+    function isInsideBoard(pos) {
+      return pos.col >= 0 && pos.col < COLS && pos.row >= 0 && pos.row < ROWS;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    buildBoard();
+    partyState = createInitialPartyState();
+    showTitleScreen();
+    updateMeasurements();
+
+    window.addEventListener("resize", updateMeasurements);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("keydown", event => {
+      if (event.code !== "Space") return;
+      event.preventDefault();
+      togglePause();
+    });
+    resetButton.addEventListener("click", resetGame);
+    startButton.addEventListener("click", resetGame);
+  </script>
+</body>
+</html>
