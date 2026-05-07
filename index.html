@@ -2094,7 +2094,7 @@
         applyBgmVolume();
         return;
       }
-      stopBattleBgm();
+      stopBgmAudioExcept(src);
       bgmAudio = takeAudioFromPool(src);
       bgmAudio.dataset.src = src;
       bgmAudio.loop = true;
@@ -2109,7 +2109,7 @@
         applyBgmVolume();
         return;
       }
-      stopBattleBgm();
+      stopBgmAudioExcept(TITLE_BGM_SRC);
       bgmAudio = takeAudioFromPool(TITLE_BGM_SRC);
       bgmAudio.dataset.src = TITLE_BGM_SRC;
       bgmAudio.loop = true;
@@ -2119,10 +2119,30 @@
     }
 
     function stopBattleBgm() {
-      if (!bgmAudio) return;
-      bgmAudio.pause();
-      bgmAudio.currentTime = 0;
+      stopBgmAudioExcept(null);
       bgmAudio = null;
+    }
+
+    function stopBgmAudioExcept(keepSrc) {
+      [BATTLE_BGM_SRC, BOSS_BGM_SRC].forEach(src => {
+        if (src === keepSrc) return;
+        stopAudioPool(src);
+      });
+      if (bgmAudio && bgmAudio.dataset.src !== keepSrc) {
+        bgmAudio.pause();
+        bgmAudio.currentTime = 0;
+        bgmAudio = null;
+      }
+    }
+
+    function stopAudioPool(src) {
+      const pool = audioPools.get(src);
+      if (!pool) return;
+      pool.forEach(audio => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.loop = false;
+      });
     }
 
     function stopFanfare() {
