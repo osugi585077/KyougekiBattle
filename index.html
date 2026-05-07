@@ -865,6 +865,16 @@
       yellow: "Sound/Thunder.mp3",
       blue: "Sound/Ice.mp3"
     };
+    const SOUND_CLIP_SRCS = [
+      DRAG_SOUND_SRC,
+      PLAYER_ATTACK_SOUND_SRC,
+      ENEMY_ATTACK_SOUND_SRC,
+      BATTLE_BGM_SRC,
+      BOSS_BGM_SRC,
+      ENEMY_DEFEAT_SOUND_SRC,
+      FRIENDLY_DEFEAT_SOUND_SRC,
+      ...Object.values(SKILL_SOUND_BY_SKILL)
+    ];
     const ENEMY_IMAGE_SRCS = ["Image/Enemy/mo_01.jpg", "Image/Enemy/mo02.jpg", "Image/Enemy/mo03.jpg", "Image/Enemy/mo04.jpg"];
     const BOSS_IMAGE_SRC = "Image/Enemy/Boss.jpg";
     const PLAYER_IMAGE_BY_SKILL = {
@@ -918,6 +928,8 @@
     let bgmAudio = null;
     let dragHum = null;
     let gameOverBgmTimer = null;
+    let mediaAudioUnlocked = false;
+    const audioPools = new Map();
     let pendingPointerMove = null;
     let pointerMoveFrame = null;
     let bgmVolume = 0.5;
@@ -1860,11 +1872,20 @@
         applySeVolume();
       }));
 
+      const closeButton = document.createElement("button");
+      closeButton.className = "pause-menu-button";
+      closeButton.type = "button";
+      closeButton.textContent = "閉じる";
+      closeButton.addEventListener("click", togglePause);
+      closeButton.textContent = "\u9589\u3058\u308b";
+      panel.appendChild(closeButton);
+
       const titleButton = document.createElement("button");
       titleButton.className = "pause-menu-button";
       titleButton.type = "button";
       titleButton.textContent = "タイトルに戻る";
       titleButton.addEventListener("click", showTitleScreen);
+      titleButton.textContent = "\u30bf\u30a4\u30c8\u30eb\u306b\u623b\u308b";
       panel.appendChild(titleButton);
 
       screen.appendChild(panel);
@@ -1965,18 +1986,73 @@
     function unlockAudio() {
       if (!audioCtx) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        audioCtx = new AudioContext();
-        masterGain = audioCtx.createGain();
-        masterGain.gain.value = seVolume * 0.32;
-        masterGain.connect(audioCtx.destination);
-        bgmGain = audioCtx.createGain();
-        bgmGain.gain.value = bgmVolume * 0.24;
-        bgmGain.connect(audioCtx.destination);
+        if (AudioContext) {
+          audioCtx = new AudioContext();
+          masterGain = audioCtx.createGain();
+          masterGain.gain.value = seVolume * 0.32;
+          masterGain.connect(audioCtx.destination);
+          bgmGain = audioCtx.createGain();
+          bgmGain.gain.value = bgmVolume * 0.24;
+          bgmGain.connect(audioCtx.destination);
+        }
       }
-      if (audioCtx.state === "suspended") {
+      if (audioCtx && audioCtx.state === "suspended") {
         audioCtx.resume();
       }
+      unlockMediaAudio();
+    }
+
+    function createClip(src) {
+      const audio = new Audio(src);
+      audio.preload = "auto";
+      audio.playsInline = true;
+      return audio;
+    }
+
+    function prepareAudioPools() {
+      SOUND_CLIP_SRCS.forEach(src => {
+        if (audioPools.has(src)) return;
+        audioPools.set(src, [createClip(src), createClip(src), createClip(src)]);
+      });
+    }
+
+    function takeAudioFromPool(src) {
+      prepareAudioPools();
+      const pool = audioPools.get(src) || [createClip(src)];
+      if (!audioPools.has(src)) audioPools.set(src, pool);
+      const audio = pool.find(item => item.paused || item.ended) || createClip(src);
+      if (!pool.includes(audio)) pool.push(audio);
+      audio.muted = false;
+      return audio;
+    }
+
+    function unlockMediaAudio() {
+      if (mediaAudioUnlocked) return;
+      prepareAudioPools();
+      mediaAudioUnlocked = true;
+      audioPools.forEach(pool => {
+        const audio = pool[0];
+        const previousVolume = audio.volume;
+        audio.muted = true;
+        audio.volume = 0;
+        const playback = audio.play();
+        if (!playback) {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+          audio.volume = previousVolume;
+          return;
+        }
+        playback.then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+          audio.volume = previousVolume;
+        }).catch(() => {
+          audio.muted = false;
+          audio.volume = previousVolume;
+        });
+      });
     }
 
     function playTone(freq, duration = 0.12, type = "sine", volume = 0.45, when = 0) {
@@ -2019,9 +2095,10 @@
         return;
       }
       stopBattleBgm();
-      bgmAudio = new Audio(src);
+      bgmAudio = takeAudioFromPool(src);
       bgmAudio.dataset.src = src;
       bgmAudio.loop = true;
+      bgmAudio.currentTime = 0;
       applyBgmVolume();
       bgmAudio.play().catch(() => {});
     }
@@ -2033,9 +2110,10 @@
         return;
       }
       stopBattleBgm();
-      bgmAudio = new Audio(TITLE_BGM_SRC);
+      bgmAudio = takeAudioFromPool(TITLE_BGM_SRC);
       bgmAudio.dataset.src = TITLE_BGM_SRC;
       bgmAudio.loop = true;
+      bgmAudio.currentTime = 0;
       bgmAudio.volume = clamp(bgmVolume * 0.55, 0, 1);
       bgmAudio.play().catch(() => {});
     }
@@ -2073,7 +2151,7 @@
 
     function startDragSound() {
       if (dragHum) return;
-      dragHum = new Audio(DRAG_SOUND_SRC);
+      dragHum = takeAudioFromPool(DRAG_SOUND_SRC);
       dragHum.loop = true;
       dragHum.volume = seVolume * 0.72;
       dragHum.currentTime = 0;
@@ -2094,7 +2172,8 @@
     }
 
     function playAudioClip(src, volume = 0.7) {
-      const audio = new Audio(src);
+      const audio = takeAudioFromPool(src);
+      audio.loop = false;
       audio.volume = clamp(seVolume * volume, 0, 1);
       audio.currentTime = 0;
       audio.play().catch(() => {});
@@ -2283,6 +2362,7 @@
 
     buildBoard();
     partyState = createInitialPartyState();
+    resetButton.textContent = "PAUSE";
     showTitleScreen();
     updateMeasurements();
 
@@ -2295,7 +2375,9 @@
       event.preventDefault();
       togglePause();
     });
-    resetButton.addEventListener("click", resetGame);
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
+    resetButton.addEventListener("click", togglePause);
     startButton.addEventListener("click", resetGame);
   </script>
 </body>
